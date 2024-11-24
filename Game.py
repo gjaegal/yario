@@ -15,8 +15,6 @@ class Game():
         self.env = retro.make(game='SuperMarioBros-Nes', state = 'Level1-1')
         self.env.reset()
         
-        self.back_count = 0
-        
         # Pygame 설정
         pygame.init()
         self.x_pixel_num = x_pixel_num

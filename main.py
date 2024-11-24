@@ -24,7 +24,7 @@ import torch
 
 # TODO get_yolo_format_for_game로 타일 정보 받으면 좀 이상한데 다시 기존 방식으로도 다시 해보기
 class Main:
-    def __init__(self, human_mode=True, use_yolo = True, training = False, visualize = True, grid_visualize = False):
+    def __init__(self, human_mode=True, use_yolo = True, training = False, visualize = True, grid_visualize = False, model_path = None):
         pygame.init()
         self.fps = 60
         self.x_pixel_num = 256
@@ -40,6 +40,7 @@ class Main:
         
         self.yolo_model = None
         self.agent = None
+        self.model_path = model_path
 
 
         self.is_grid_shown = False
@@ -58,10 +59,10 @@ class Main:
         if self.human_mode:
             self.input_device = HumanInput()
         else:
-            self.init_agent_mode(model_path)
+            self.init_agent_mode()
 
 
-    def init_agent_mode(self, model_path=None):
+    def init_agent_mode(self):
         if not self.training:
             input_dim = (15 * 16 * 4 + 3) * 4 + 12 # (15 * 16 * 4 + 3(마리오 상태) ) * 4 + 12(action) : 3864
             # TODO 이전 action 12개 더하기 
@@ -69,9 +70,9 @@ class Main:
             output_dim = 12                   # action 12개
 
             # get agent network parameters
-            self.agent = PPOAgent(16, hidden_dims, output_dim)
-            if model_path != None:
-                loaded_weights = torch.load(model_path, map_location=device)
+            self.agent = PPOAgent(16, output_dim)
+            if self.model_path != None:
+                loaded_weights = torch.load(self.model_path, map_location=device)
                 self.agent.load_state_dict(loaded_weights)
                 print("Loaded agent weights..")
             
@@ -82,7 +83,7 @@ class Main:
             self.game_thread = threading.Thread(target=self.game.run)
             self.game_thread.start()
         else:
-            trainer = Trainer(self.game, self.use_yolo)
+            trainer = Trainer(self.game, self.use_yolo, self.model_path)
             # trainer.train_test()
             trainer.train()
 
@@ -235,9 +236,8 @@ if __name__ == "__main__":
     #    use_yolo가 true이면 yolo에서 인식된 결과를 출력
     #    use_yolo가 false이면 게임에서 직접 불러온 결과를 출력
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model_path = None
 
-    main = Main(human_mode=False, use_yolo = False, training =True, visualize = True, grid_visualize = False)
+    main = Main(human_mode=False, use_yolo = False, training =True, visualize = True, grid_visualize = False, model_path = None)
 
     main.run()
 

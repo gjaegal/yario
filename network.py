@@ -5,7 +5,7 @@ import numpy as np
 
 # PPO 에이전트 네트워크 정의
 class PPOAgent(nn.Module):
-    def __init__(self, input_dim, hidden_dims, output_dim):
+    def __init__(self, input_dim, output_dim):
         super(PPOAgent, self).__init__()
         self.input_dim = input_dim
         self.conv1 = nn.Conv2d(input_dim, 16, 3, stride=2, padding=1)
@@ -102,8 +102,8 @@ class PPOAgent(nn.Module):
 
 
 # 네트워크 초기화 함수
-def create_agent(input_dim, hidden_dims, output_dim):
-    agent = PPOAgent(input_dim, hidden_dims, output_dim).to(device)
+def create_agent(input_dim, output_dim):
+    agent = PPOAgent(input_dim, output_dim).to(device)
     return agent
 
 def test_agent(model_path=None):

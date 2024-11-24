@@ -25,15 +25,17 @@ actualSteps = MAX_STEPS / 4
 UPDATE_INTERVAL = actualSteps / 20  # 업데이트 주기, 에피소드 하나에 10번 업데이트
 
 class Trainer():
-    def __init__(self, game: Game, use_yolo = False):
+    def __init__(self, game: Game, use_yolo = False, model_path = None):
         # 에이전트 및 모델 초기화
         input_dim = 16  # {YOLO state + Mario state}*4 + 이전 행동
         self.action_dim = 12  # 12차원 행동 공간
         hidden_dims = [1024, 512]  # 네트워크 hidden layer 크기
-        self.agent = PPOAgent(input_dim = input_dim, hidden_dims = hidden_dims, output_dim = self.action_dim)  # PPO 에이전트
+        self.agent = PPOAgent(input_dim = input_dim, output_dim = self.action_dim)  # PPO 에이전트
         self.AgentInput = AgentInput(self.agent)
         self.yolo_model = Yolo_Model(x_pixel_num=256, y_pixel_num=240)  # YOLO 모델
         self.game = game  # 게임 환경
+        self.model_path = model_path
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
         # 옵티마이저 설정
         self.optimizer = optim.Adam(self.agent.parameters(), lr=LR)
@@ -82,6 +84,10 @@ class Trainer():
             states = []
             rewards, log_probs, values, masks, actions = [], [], [], [], []
             old_log_probs, old_values = [], []  # 이전 log_prob와 value를 저장
+            if self.model_path != None:
+                loaded_weights = torch.load(self.model_path, map_location=self.device)
+                self.agent.load_state_dict(loaded_weights)
+                print("Loaded agent weights..")
             print(f"===========episode {episode} start==================")
             start_time = time.time()
             actual_steps = 0
