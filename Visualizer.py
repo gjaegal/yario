@@ -13,7 +13,7 @@ class GridVisualizer(QtWidgets.QWidget):
         self.size = size
         self.ram = None
         self.x_offset = 150
-        self.tile_width, self.tile_height = 20, 20
+        self.tile_width, self.tile_height = 5, 5
         self.tiles = None
         self.enemies = None
         self._should_update = True
@@ -65,8 +65,8 @@ class GridVisualizer(QtWidgets.QWidget):
         
         if not self.tiles:
             return
-        for row in range(15):
-            for col in range(16):
+        for row in range(60):
+            for col in range(64):
                 loc = (row, col)
                 
 

@@ -12,21 +12,24 @@ from Yolo_Model import Yolo_Model
 from InputType import AgentInput
 
 # 하이퍼파라미터
-NUM_EPISODES = 1000
-MAX_STEPS = 1000#30* 401 # 한 프레임30, 총 400초
+NUM_EPISODES = 200
+MAX_STEPS = 10000 #30* 401 # 한 프레임30, 총 400초
 GAMMA = 0.99
 GAE_LAMBDA = 0.95
 UPDATE_INTERVAL = 100  # 업데이트 주기
 BATCH_SIZE = 64
-CLIP_EPSILON = 0.2  # PPO 클리핑 epsilon 값
-LR = 3e-3  # 학습률
+CLIP_EPSILON = 0.3  # PPO 클리핑 epsilon 값
+LR = 1e-5  # 학습률
+
+actualSteps = MAX_STEPS / 4
+UPDATE_INTERVAL = actualSteps / 20  # 업데이트 주기, 에피소드 하나에 10번 업데이트
 
 class Trainer():
     def __init__(self, game: Game, use_yolo = False):
         # 에이전트 및 모델 초기화
-        input_dim = 3864  # YOLO state + Mario state + 이전 행동
+        input_dim = 16  # {YOLO state + Mario state}*4 + 이전 행동
         self.action_dim = 12  # 12차원 행동 공간
-        hidden_dims = [1024, 256]  # 네트워크 hidden layer 크기
+        hidden_dims = [1024, 512]  # 네트워크 hidden layer 크기
         self.agent = PPOAgent(input_dim = input_dim, hidden_dims = hidden_dims, output_dim = self.action_dim)  # PPO 에이전트
         self.AgentInput = AgentInput(self.agent)
         self.yolo_model = Yolo_Model(x_pixel_num=256, y_pixel_num=240)  # YOLO 모델
@@ -46,10 +49,10 @@ class Trainer():
         self.model_dir = './models'  # 모델을 저장할 디렉터리
         os.makedirs(self.model_dir, exist_ok=True)
 
-    def save_model(self, episode):
+    def save_model(self, episode, N=0):
         """ 모델의 파라미터를 저장합니다. """
-        current_time = time.time()
-        filename = os.path.join(self.model_dir, f"ppo_agent_episode_{episode}_{current_time}.pth")
+        # current_time = time.time()
+        filename = os.path.join(self.model_dir, f"ppo_agent_{N}_episode_{episode}.pth")
         torch.save(self.agent.state_dict(), filename)
         print(f"Model saved to {filename} at episode {episode}")
 
@@ -61,7 +64,7 @@ class Trainer():
             tensor_state = self.yolo_model.get_tensor(yolo_input_img, mario_state)
             return tensor_state
         else:
-            tensor_state = self.game.get_tensor()
+            tensor_state = self.game.get_2dtensor()
             # print(tensor_state)
             return tensor_state
 
@@ -79,13 +82,13 @@ class Trainer():
             states = []
             rewards, log_probs, values, masks, actions = [], [], [], [], []
             old_log_probs, old_values = [], []  # 이전 log_prob와 value를 저장
-            print(f"episode {episode} start")
+            print(f"===========episode {episode} start==================")
             start_time = time.time()
             actual_steps = 0
             for step in range(MAX_STEPS):
                 current_time = time.time()
                 if step % 100 == 0:
-                    print(f"prev action: {self.prev_action}")
+                    #print(f"prev action: {self.prev_action}")
                     print(f"current_step: {step}")
                     print(f"elapsed time: {current_time - start_time}")
                    
@@ -106,7 +109,8 @@ class Trainer():
 
                 # 입력 벡터를 결합
                 # full_state = torch.cat([tensor_state, mario_state_tensor, prev_action_one_hot])
-                full_state = torch.cat([tensor_state, prev_action_one_hot])
+                # full_state = torch.cat([tensor_state, prev_action_one_hot])
+                full_state = tensor_state
 
                 # 에이전트 행동 선택
                 action_int, action_tensor, log_prob, value = self.agent.select_action(full_state)
@@ -117,7 +121,7 @@ class Trainer():
                 action_one_hot[action_int] = 1
                 # 보상 및 게임 정보 업데이트
                 reward, done, _ = self.game.step(action_np)  # step() 메소드에서 보상과 종료 여부 받기
-                # print(f"reward: {reward}")
+                # if reward!=0: print(reward)
                 # print(f"action: {action_int}")
                 # log_prob = 
                 states.append(full_state)  # 현재 상태를 states 리스트에 추가
@@ -151,15 +155,22 @@ class Trainer():
                     returns, advantages = self.compute_gae(rewards, values, masks)
                     
                     # PPO 업데이트: 클리핑 기법을 사용하여 정책 업데이트
-                    self.agent.update(states, actions, returns, advantages, log_probs, old_log_probs, old_values, self.optimizer, BATCH_SIZE, CLIP_EPSILON)
-                    print("save_model")
-                    self.save_model(episode)
+                    total_loss = self.agent.update(states, actions, returns, advantages, log_probs, old_log_probs, old_values, self.optimizer, BATCH_SIZE, CLIP_EPSILON)
+                    avg_reward = np.mean(rewards)
+                    print("Avg rewards: ", avg_reward)
+                    print("total loss: ", total_loss)
                     # 매 업데이트 후 로그 초기화
                     rewards, log_probs, values, masks, actions = [], [], [], [], []
                     old_log_probs, old_values = [], []
                     states = []
 
             print(f"Episode {episode + 1}/{NUM_EPISODES} completed.")
+            
+            self.save_model(episode, N=0)
+            f = open("log.txt", 'a')
+            data = f"\nEpisode: {episode+1}, \tAvg rewards: {avg_reward} \ttotal loss: {total_loss}"
+            f.write(data)
+            f.close()
             
     def compute_gae(self, rewards, values, masks, gamma=GAMMA, gae_lambda=GAE_LAMBDA):
         # GAE advantage 계산

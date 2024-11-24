@@ -15,6 +15,8 @@ class Game():
         self.env = retro.make(game='SuperMarioBros-Nes', state = 'Level1-1')
         self.env.reset()
         
+        self.back_count = 0
+        
         # Pygame 설정
         pygame.init()
         self.x_pixel_num = x_pixel_num
@@ -46,7 +48,7 @@ class Game():
         self.previous_action = np.array( [0, 1,    0,      0,     0, 0, 0, 0, 0], np.int8)
         self.prev_mario_state = 0
         self.prev_score = 0
-        self.prev_mario_x = 0
+        self.prev_mario_x = 40
         self.action_map = { 0: np.array( [0, 1,    0,      0,     0, 0, 0, 0, 0], np.int8),
                     1: np.array( [0, 0,    0,      0,     0, 1, 0, 0, 0], np.int8),
                     2: np.array( [0, 0,    0,      0,     0, 0, 1, 0, 0], np.int8),
@@ -84,6 +86,7 @@ class Game():
 
     def visualize_frame(self):
         if self.visualize:
+            pygame.event.pump()
             rendered_frame = self.env.render(mode='rgb_array').swapaxes(0, 1)
             frame = pygame.surfarray.make_surface(rendered_frame)
             frame_scaled = pygame.transform.scale(frame, (self.x_pixel_num, self.y_pixel_num))
@@ -118,26 +121,19 @@ class Game():
         if not isinstance(action, np.ndarray) or action.shape != (9,):
             raise ValueError("The action must be a numpy array of shape (9,).")
         # 게임 환경 업데이트
-        obs, rew, done, info = self.env.step(action)
+        obs, reward, done, info = self.env.step(action)
         # rew 값이 계속 증가하지 않고 0, 1, 2 값만 반환함 -> 
         # reward = 
-
-        reward = self.get_reward()
+        reward = self.custom_reward(reward)
+        
         is_world_cleared = self.is_world_cleared()
         is_dead = self.is_dead()
 
         # 월드를 클리어했거나 죽었으면 시작지점으로 게임을 초기화
         if is_world_cleared or is_dead:
             self.reset()
-
-        # # 게임 화면 업데이트
-        # self.game_screen.blit(pygame.surfarray.make_surface(self.env.render(mode='rgb_array').swapaxes(0, 1)), (0, 0))
-
-        # # 게임 화면 스케일링
-        # frame = pygame.surfarray.make_surface(self.env.render(mode='rgb_array').swapaxes(0, 1))
-        # frame = pygame.transform.scale(frame, (self.x_pixel_num, self.y_pixel_num))  # 스케일링
-        # self.game_screen.blit(frame, (0, 0))
-        # pygame.display.flip()
+        # if is_world_cleared or is_dead:
+        #     self.reset()
         self.visualize_frame()
 
 
@@ -145,33 +141,43 @@ class Game():
         return reward, is_world_cleared, None
         ###########################################
     
-    def get_reward(self):
-        ram = self.env.get_ram()
-        reward = 0
-        if self.is_dead():
-            reward -= 10000
-
-        if self.is_get_item():
-            reward += 1000
-
-        current_score = self.get_mario_score()   
-        score_diff = current_score - self.prev_score
-        self.prev_score = current_score
-
-        reward += score_diff
-
+    def custom_reward(self, reward = 0):
         # 스크린이 시작하는 지점의 값
         # 끝났을때가 3040
+        ram = self.env.get_ram()
         mario_position = SMB.get_mario_location_in_level(ram)
         position_diff = mario_position.x - self.prev_mario_x
         # print(f"position_diff: {position_diff}")
-        reward += (position_diff) * 10
-
+        # if position_diff>0: 
+        #     if position_diff >1:
+        #         reward+=2
+        #     elif position_diff == 1: 
+        #         reward += 1
         if position_diff <= 0:
-            reward -= 50
+            if position_diff == 0:
+                reward -= 1
+            elif position_diff == -1: 
+                reward -= 2
+            else: 
+                reward -= 10
         self.prev_mario_x = mario_position.x
-        # print(f"reward: {reward}")
+        
+        # self.reward = min(max(self.reward, -100), 100)
+        
+        if self.is_dead():
+            reward -= 20
+
+        # if self.is_get_item():
+        #     reward += 50
+
+        current_score = self.get_mario_score()   # 코인,블록: 100 적: 100 버섯: 1000
+        score_diff = current_score - self.prev_score
+        if score_diff > 0:
+            reward += score_diff/20
+        self.prev_score = current_score
+        
         return reward
+
     
     # 마리오가 아이템을 먹은 시점에 true 반환
     def is_get_item(self):
@@ -227,8 +233,7 @@ class Game():
 
         self.prev_score = 0
         self.prev_mario_state = 0
-        self.prev_mario_x = 0
-
+        self.prev_mario_x = 40
 
 
     def get_mario_score(self):
@@ -283,12 +288,16 @@ class Game():
         # yolo_format = SMB.get_yolo_format_new(ram)
         yolo_format = SMB.get_yolo_format_for_game(ram)
         self.tile_info = {}
+        
+        reduce_ratio = 4
+        orig_x = 256
+        orig_y = 240
 
-        base_x_unit_length = 16 / 256
-        base_y_unit_length = 16 / 240
+        base_x_unit_length = reduce_ratio / orig_x
+        base_y_unit_length = reduce_ratio / orig_y
 
-        grid_w = 16
-        grid_h = 15
+        grid_w = orig_x/reduce_ratio # 64
+        grid_h = orig_y/reduce_ratio # 60
 
         for label_value, coordinates in yolo_format.items():
             for coordinate in coordinates:
@@ -305,9 +314,9 @@ class Game():
                 loc = (grid_x, grid_y)
                 self.tile_info[loc] = label_value
 
-                if grid_y == 2:
-                    new_loc = (grid_x, grid_y-1)
-                    self.tile_info[new_loc] = label_value
+                # if grid_y == 2:
+                #     new_loc = (grid_x, grid_y-1)
+                #     self.tile_info[new_loc] = label_value
 
         return self.tile_info
     
@@ -318,8 +327,8 @@ class Game():
     def get_tensor(self):
         mario_state = self.get_mario_state()
         tile_info = self.get_tile_info()
-        grid_w = 16
-        grid_h = 15
+        grid_w = 64
+        grid_h = 60
         for key, value in tile_info.items():
             grid_x, grid_y = key
             class_id = value
@@ -341,3 +350,34 @@ class Game():
             self.frame_count = 0
 
         return self.tensor.get_tensor()
+    
+    def get_2dtensor(self):
+        mario_state = self.get_mario_state()
+        tile_info = self.get_tile_info()
+        grid_w = 64
+        grid_h = 60
+        for key, value in tile_info.items():
+            grid_x, grid_y = key
+            class_id = value
+
+            grid_x = int(grid_x * grid_w)
+            grid_y = int(grid_y * grid_h)
+
+            grid_x = min(max(grid_x, 0), grid_w - 1)
+            grid_y = min(max(grid_y, 0), grid_h - 1)
+
+            group_id = self.class_mapping.get_group_id(class_id)
+            # print(group_id)
+            self.tensor.update_2d(mario_state, grid_x, grid_y, group_id, self.frame_count)
+
+
+        self.frame_count += 1
+
+        if self.frame_count == self.tensor.get_base_frame_count():
+            self.frame_count = 0
+            final_tensor = self.tensor.get_final_tensor().clone()
+            final_tensor = final_tensor.unsqueeze(0)
+            self.tensor.reset_final_tensor()
+            return final_tensor
+
+        return None

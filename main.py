@@ -58,18 +58,24 @@ class Main:
         if self.human_mode:
             self.input_device = HumanInput()
         else:
-            self.init_agent_mode()
+            self.init_agent_mode(model_path)
 
 
-    def init_agent_mode(self):
+    def init_agent_mode(self, model_path=None):
         if not self.training:
             input_dim = (15 * 16 * 4 + 3) * 4 + 12 # (15 * 16 * 4 + 3(마리오 상태) ) * 4 + 12(action) : 3864
             # TODO 이전 action 12개 더하기 
-            hidden_dims = [1024, 256]
+            hidden_dims = [1024, 512]
             output_dim = 12                   # action 12개
 
-            # TODO 여기서 기존에 저장한 파라미터 불러올 수 있게
-            self.agent = PPOAgent(input_dim, hidden_dims, output_dim)
+            # get agent network parameters
+            self.agent = PPOAgent(16, hidden_dims, output_dim)
+            if model_path != None:
+                loaded_weights = torch.load(model_path, map_location=device)
+                self.agent.load_state_dict(loaded_weights)
+                print("Loaded agent weights..")
+            
+            # Agent input
             self.input_device = AgentInput(self.agent)
 
 
@@ -150,30 +156,40 @@ class Main:
                     if self.use_yolo:
                         tensor = self.yolo_model.get_tensor(yolo_input_img, mario_state)
                     else:
-                        tensor = self.game.get_tensor()
+                        tensor = self.game.get_2dtensor()
                         
                     # 누적 프레임만큼 쌓이지 않으면 tensor = None
                     # TODO 프레임 쉬는 동안에는 이전 액션을 취하도록
-                    if tensor != None:
-                        # print('tensor not none')
-                        # tensor 합치기
-                        prev_action_one_hot = torch.zeros(self.action_dim)
-                        prev_action_int = self.input_device.get_action_int(self.prev_action)
-                        prev_action_one_hot[prev_action_int] = 1
-                        full_state = torch.cat([tensor, prev_action_one_hot])
-                        action = self.input_device.get_action(full_state)
+                    # if tensor != None:
+                    #     # print('tensor not none')
+                    #     # tensor 합치기
+                    #     prev_action_one_hot = torch.zeros(self.action_dim)
+                    #     prev_action_int = self.input_device.get_action_int(self.prev_action)
+                    #     prev_action_one_hot[prev_action_int] = 1
+                    #     full_state = torch.cat([tensor, prev_action_one_hot])
+                    #     action = self.input_device.get_action(full_state)
                         
-                        # action = self.input_device.get_jump_action()
-                        print(action)
-                        self.game.receive_action(action)
-                        last_update_time = current_time
-                        self.prev_action = action
+                    #     # action = self.input_device.get_jump_action()
+                    #     # action = np.array( [1, 0,    0,      0,     0, 0, 1, 0, 1], np.int8)
+                    #     # print(action)
+                    #     self.game.receive_action(action)
+                    #     last_update_time = current_time
+                    #     self.prev_action = action
 
-                    else:
-                        # print('tensor is none')
-                        # print(self.prev_action)
-                        self.game.receive_action(self.prev_action)
+                    # else:
+                    #     # print('tensor is none')
+                    #     # print(self.prev_action)
+                    #     self.game.receive_action(self.prev_action)
+                    #     last_update_time = current_time
+                    if tensor != None:
+                        action = self.input_device.get_action(tensor)
+                        # action = np.array( [1, 0,    0,      0,     0, 0, 0, 1, 1], np.int8)
+                        
+                        self.game.receive_action(action)
+                        self.prev_action = action
                         last_update_time = current_time
+                    else:
+                        self.game.receive_action(self.prev_action)
 
                 self.show_grid()
 
@@ -218,8 +234,10 @@ if __name__ == "__main__":
     # 5. grid_visualize = True -> 그리드 형식으로 현재 게임이 나옴
     #    use_yolo가 true이면 yolo에서 인식된 결과를 출력
     #    use_yolo가 false이면 게임에서 직접 불러온 결과를 출력
-    
-    main = Main(human_mode=False, use_yolo = False, training = False, visualize = True, grid_visualize = True)
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model_path = None
+
+    main = Main(human_mode=False, use_yolo = False, training =True, visualize = True, grid_visualize = False)
 
     main.run()
 

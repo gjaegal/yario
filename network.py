@@ -1,18 +1,24 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import numpy as np
 
 # PPO 에이전트 네트워크 정의
 class PPOAgent(nn.Module):
     def __init__(self, input_dim, hidden_dims, output_dim):
         super(PPOAgent, self).__init__()
         self.input_dim = input_dim
-        self.fc1 = nn.Linear(input_dim, hidden_dims[0])
-        self.fc2 = nn.Linear(hidden_dims[0], hidden_dims[1])
-        self.action_head = nn.Linear(hidden_dims[1], output_dim)
-        self.value_head = nn.Linear(hidden_dims[1], 1)
+        self.conv1 = nn.Conv2d(input_dim, 16, 3, stride=2, padding=1)
+        self.conv2 = nn.Conv2d(16, 16, 3, stride=2, padding=1)
+        self.fc1 = nn.Linear(16*15*16, 512)
+        self.fc2 = nn.Linear(512, 128)
+        self.action_head = nn.Linear(128, output_dim)
+        self.value_head = nn.Linear(128, 1)
 
     def forward(self, x):
+        x = F.relu(self.conv1(x))
+        x = F.relu(self.conv2(x))
+        x = x.view(x.size(0), -1)
         x = F.relu(self.fc1(x))
         x = F.relu(self.fc2(x))
         action_logits = self.action_head(x)
@@ -21,8 +27,8 @@ class PPOAgent(nn.Module):
 
     def select_action(self, state):
         # 입력 상태의 크기가 input_dim과 일치하는지 검사
-        if state.size(-1) != self.input_dim:
-            raise ValueError(f"Expected input dimension is {self.input_dim}, but got {state.size(-1)}")
+        # if state.size(-1) != self.input_dim:
+        #     raise ValueError(f"Expected input dimension is {self.input_dim}, but got {state.size(-1)}")
         
         action_logits, value = self.forward(state)
         action_probs = torch.softmax(action_logits, dim=-1)
@@ -37,7 +43,7 @@ class PPOAgent(nn.Module):
         # Tensor로 변환하는 과정
         # print("States Tensor Shape:", len(states))
         states = torch.stack(states, dim=0).detach()
-        # print("States Tensor Shape:", states.shape)
+        # print("States Tensor Shape:", np.shape(states))
         actions = torch.cat(actions).detach()  # 행동 인덱스 텐서
         returns = torch.cat(returns).detach()
         advantages = torch.cat(advantages).detach()
@@ -59,8 +65,9 @@ class PPOAgent(nn.Module):
                 sampled_old_values = old_values[sampled_indices]
 
                 # 새로운 log_prob, values 계산
+                sampled_states = sampled_states.squeeze(1)
                 action_logits, values = self.forward(sampled_states)
-                new_log_probs = torch.log(torch.softmax(action_logits, dim=-1) + 1e-10)  # log_softmax와 동일
+                new_log_probs = torch.log(torch.softmax(action_logits, dim=1) + 1e-10)  # log_softmax와 동일
 
 
                 # 샘플링된 행동의 로그 확률 추출
@@ -79,7 +86,7 @@ class PPOAgent(nn.Module):
 
                 # 가치 손실
                 # value_loss = F.mse_loss(values, sampled_returns)
-                value_loss = F.mse_loss(values.squeeze(1), sampled_returns)
+                value_loss = F.mse_loss(values, sampled_returns)
 
 
                 # 전체 손실
@@ -89,6 +96,8 @@ class PPOAgent(nn.Module):
                 optimizer.zero_grad()
                 loss.backward()
                 optimizer.step()
+                
+        return loss
 
 
 
@@ -97,26 +106,28 @@ def create_agent(input_dim, hidden_dims, output_dim):
     agent = PPOAgent(input_dim, hidden_dims, output_dim).to(device)
     return agent
 
-def test_agent():
+def test_agent(model_path=None):
     # 에이전트 생성
-    input_dim = 24  # 예시로 24차원 상태 벡터를 가정
-    hidden_dims = [128, 64]  # 은닉층 차원 설정
-    output_dim = 4  # 예를 들어, 4개의 가능한 행동을 가정
-
-    agent = create_agent(input_dim, hidden_dims, output_dim)
-
-    for i in range(50):
-        # 더미 입력 데이터 생성 (랜덤)
-        dummy_state = torch.rand((1, input_dim)).to(device)
-
-        # 행동 선택 및 출력
-        action, action_tensor, log_prob, value = agent.select_action(dummy_state)
-        print("Selected Action:", action)
-        # print("Log Probability of Selected Action:", log_prob)
-        # print("Value of the current state:", value)
+    input_dim = 16  # {YOLO state + Mario state}*4 + 이전 행동
+    action_dim = 12  # 12차원 행동 공간
+    hidden_dims = [1024, 512]  # 네트워크 hidden layer 크기
+    
+    agent = create_agent(input_dim = input_dim, hidden_dims = hidden_dims, output_dim = action_dim)  # PPO 에이전트
+    
+    # load agent network weights
+    # loaded_weights = torch.load(model_path, map_location=device)
+    # agent.load_state_dict(loaded_weights)
+    
+    # test on state
+    dummy_state = torch.rand((1, 16, 15, 16)).to(device)
+    action, action_tensor, log_prob, value = agent.select_action(dummy_state)
+    print("Selected Action:", action)
+    print("Log Probability of Selected Action:", log_prob)
+    print("Value of the current state:", value)
 
 if __name__ == "__main__":
     # GPU 장치 설정 (GPU가 있으면 GPU 사용, 없으면 CPU 사용)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    test_agent()
+    model_path= None
+    test_agent(model_path)
 
