@@ -60,6 +60,7 @@ class Game():
                     10: np.array( [1, 0,    0,      0,     0, 0, 0, 1, 1], np.int8),
                     11: np.array( [1, 0,    0,      0,     0, 0, 1, 0, 1], np.int8),
                     }
+        self.farthest_x = 40
 
     def stop(self):
         self.running = False
@@ -107,8 +108,10 @@ class Game():
         # print(f"obs: {obs}")
         # print(f"rew: {rew}")
         # print(f"done: {done}")
+        # reward = self.custom_reward(rew)
+
         self.elapsed_frame_num += 1
-        if done:
+        if done or self.is_dead():
             self.env.reset()
 
         self.visualize_frame()
@@ -120,8 +123,7 @@ class Game():
             raise ValueError("The action must be a numpy array of shape (9,).")
         # 게임 환경 업데이트
         obs, reward, done, info = self.env.step(action)
-        # rew 값이 계속 증가하지 않고 0, 1, 2 값만 반환함 -> 
-        # reward = 
+        
         reward = self.custom_reward(reward)
         
         is_world_cleared = self.is_world_cleared()
@@ -144,26 +146,32 @@ class Game():
         # 끝났을때가 3040
         ram = self.env.get_ram()
         mario_position = SMB.get_mario_location_in_level(ram)
-        position_diff = mario_position.x - self.prev_mario_x
+        #position_diff = mario_position.x - self.prev_mario_x
+        position_diff = int(mario_position.x) - int(self.farthest_x)
+        if position_diff>0:
+            if position_diff >= 10:
+                reward += 100
+            else:
+                reward += 1
+            self.farthest_x = max(mario_position.x, self.farthest_x)
+        else:
+            reward -= 1
         # print(f"position_diff: {position_diff}")
         # if position_diff>0: 
         #     if position_diff >1:
         #         reward+=2
         #     elif position_diff == 1: 
         #         reward += 1
-        if position_diff <= 0:
-            if position_diff == 0:
-                reward -= 1
-            elif position_diff == -1: 
-                reward -= 2
-            else: 
-                reward -= 10
-        self.prev_mario_x = mario_position.x
+        # if position_diff <= 0:
+        #     if position_diff == 0:
+        #         reward -= 1
+        #     elif position_diff == -1: 
+        #         reward -= 2
+        # self.prev_mario_x = mario_position.x
         
-        # self.reward = min(max(self.reward, -100), 100)
         
         if self.is_dead():
-            reward -= 20
+            reward -= 50
 
         # if self.is_get_item():
         #     reward += 50

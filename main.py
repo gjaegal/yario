@@ -237,7 +237,7 @@ if __name__ == "__main__":
     #    use_yolo가 false이면 게임에서 직접 불러온 결과를 출력
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    main = Main(human_mode=False, use_yolo = False, training =True, visualize = True, grid_visualize = False, model_path = None)
+    main = Main(human_mode=True, use_yolo = False, training =False, visualize = True, grid_visualize = False, model_path = None)
 
     main.run()
 

@@ -18,7 +18,7 @@ GAMMA = 0.99
 GAE_LAMBDA = 0.95
 UPDATE_INTERVAL = 100  # 업데이트 주기
 BATCH_SIZE = 64
-CLIP_EPSILON = 0.3  # PPO 클리핑 epsilon 값
+CLIP_EPSILON = 0.4  # PPO 클리핑 epsilon 값
 LR = 1e-5  # 학습률
 
 actualSteps = MAX_STEPS / 4
@@ -79,15 +79,15 @@ class Trainer():
 
 
     def train(self):
+        if self.model_path != None:
+                loaded_weights = torch.load(self.model_path, map_location=self.device)
+                self.agent.load_state_dict(loaded_weights)
+                print("Loaded agent weights..")
         for episode in range(NUM_EPISODES):
             state = None  # 초기 상태
             states = []
             rewards, log_probs, values, masks, actions = [], [], [], [], []
             old_log_probs, old_values = [], []  # 이전 log_prob와 value를 저장
-            if self.model_path != None:
-                loaded_weights = torch.load(self.model_path, map_location=self.device)
-                self.agent.load_state_dict(loaded_weights)
-                print("Loaded agent weights..")
             print(f"===========episode {episode} start==================")
             start_time = time.time()
             actual_steps = 0
@@ -172,7 +172,7 @@ class Trainer():
 
             print(f"Episode {episode + 1}/{NUM_EPISODES} completed.")
             
-            self.save_model(episode, N=0)
+            self.save_model(episode, N=1)
             f = open("log.txt", 'a')
             data = f"\nEpisode: {episode+1}, \tAvg rewards: {avg_reward} \ttotal loss: {total_loss}"
             f.write(data)
