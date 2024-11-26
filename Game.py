@@ -132,42 +132,62 @@ class Game():
         # 월드를 클리어했거나 죽었으면 시작지점으로 게임을 초기화
         if is_world_cleared or is_dead:
             self.reset()
-        # if is_world_cleared or is_dead:
-        #     self.reset()
+
         self.visualize_frame()
 
 
 
         return reward, is_world_cleared, None
+    
         ###########################################
+        
+    def step_new(self, action):
+        action_np = self.action_map[action]
+        # 게임 환경 업데이트
+        obs, rew, done, info = self.env.step(action_np)
+        
+        state = self.get_2dtensor()
+        reward = self.custom_reward()
+        
+        is_world_cleared = self.is_world_cleared()
+        is_dead = self.is_dead()
+
+        # 월드를 클리어했거나 죽었으면 시작지점으로 게임을 초기화
+        if is_world_cleared or is_dead:
+            self.reset()
+
+        self.visualize_frame()
+        
+        return state, reward, done, None
     
     def custom_reward(self, reward = 0):
         # 스크린이 시작하는 지점의 값
         # 끝났을때가 3040
         ram = self.env.get_ram()
         mario_position = SMB.get_mario_location_in_level(ram)
-        #position_diff = mario_position.x - self.prev_mario_x
-        position_diff = int(mario_position.x) - int(self.farthest_x)
-        if position_diff>0:
-            if position_diff >= 10:
-                reward += 100
-            else:
-                reward += 1
-            self.farthest_x = max(mario_position.x, self.farthest_x)
-        else:
-            reward -= 1
-        # print(f"position_diff: {position_diff}")
-        # if position_diff>0: 
-        #     if position_diff >1:
-        #         reward+=2
-        #     elif position_diff == 1: 
+        # position_diff = int(mario_position.x) - int(self.farthest_x)
+        # if position_diff>0:
+        #     if position_diff >= 10:
+        #         reward += 100
+        #     else:
         #         reward += 1
-        # if position_diff <= 0:
-        #     if position_diff == 0:
-        #         reward -= 1
-        #     elif position_diff == -1: 
-        #         reward -= 2
-        # self.prev_mario_x = mario_position.x
+        #     self.farthest_x = max(mario_position.x, self.farthest_x)
+        # else:
+        #     reward -= 1
+        # print(f"position_diff: {position_diff}")
+        position_diff = mario_position.x - self.prev_mario_x
+        if position_diff >0:
+            reward += position_diff
+        if position_diff <= 0:
+            reward -= 1
+        elif position_diff == -1: 
+            reward -= 2
+        
+        if mario_position.x > self.farthest_x:
+            reward += 1
+            self.farthest_x = mario_position.x
+                
+        self.prev_mario_x = mario_position.x
         
         
         if self.is_dead():
@@ -179,7 +199,7 @@ class Game():
         current_score = self.get_mario_score()   # 코인,블록: 100 적: 100 버섯: 1000
         score_diff = current_score - self.prev_score
         if score_diff > 0:
-            reward += score_diff/20
+            reward += score_diff/50
         self.prev_score = current_score
         
         return reward
