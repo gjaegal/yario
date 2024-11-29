@@ -106,15 +106,18 @@ class Game():
         # 게임 환경 업데이트
         obs, rew, done, info = self.env.step(action)
         # print(f"obs: {obs}")
-        # print(f"rew: {rew}")
+        print(f"rew: {rew}")
         # print(f"done: {done}")
-        # reward = self.custom_reward(rew)
+        reward = self.custom_reward()
 
         self.elapsed_frame_num += 1
         if done or self.is_dead():
             self.env.reset()
 
         self.visualize_frame()
+        
+        # state = self.get_2dtensor()
+        if reward!=-1: print(reward)
 
 
     # train할 때 게임 환경을 업데이트하는 함수
@@ -154,7 +157,8 @@ class Game():
 
         # 월드를 클리어했거나 죽었으면 시작지점으로 게임을 초기화
         if is_world_cleared or is_dead:
-            self.reset()
+            done = True
+            # self.reset()
 
         self.visualize_frame()
         
@@ -177,21 +181,24 @@ class Game():
         # print(f"position_diff: {position_diff}")
         position_diff = mario_position.x - self.prev_mario_x
         if position_diff >0:
-            reward += position_diff
+            reward += position_diff /10.0
         if position_diff <= 0:
             reward -= 1
-        elif position_diff == -1: 
-            reward -= 2
         
         if mario_position.x > self.farthest_x:
             reward += 1
             self.farthest_x = mario_position.x
+        # else:
+        #     reward -= 1
                 
         self.prev_mario_x = mario_position.x
         
         
         if self.is_dead():
-            reward -= 50
+            reward -= 500
+            
+        if self.is_world_cleared():
+            reward += 100
 
         # if self.is_get_item():
         #     reward += 50
@@ -199,7 +206,7 @@ class Game():
         current_score = self.get_mario_score()   # 코인,블록: 100 적: 100 버섯: 1000
         score_diff = current_score - self.prev_score
         if score_diff > 0:
-            reward += score_diff/50
+            reward += score_diff/20
         self.prev_score = current_score
         
         return reward
@@ -260,6 +267,7 @@ class Game():
         self.prev_score = 0
         self.prev_mario_state = 0
         self.prev_mario_x = 40
+        self.farthest_x = 40
 
 
     def get_mario_score(self):

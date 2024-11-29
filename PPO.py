@@ -256,6 +256,8 @@ class PPO:
     def load(self, checkpoint_path):
         self.policy_old.load_state_dict(torch.load(checkpoint_path, map_location=lambda storage, loc: storage))
         self.policy.load_state_dict(torch.load(checkpoint_path, map_location=lambda storage, loc: storage))
+    def load_optimizer(self, chekcpoint_path):
+        self.optimizer.load_state_dict(torch.load(chekcpoint_path, map_location=lambda storage, loc: storage))
         
         
        
