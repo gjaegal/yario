@@ -40,10 +40,10 @@ def train():
     update_timestep = 1000      # update policy every n timesteps
     K_epochs = 20               # update policy for K epochs in one PPO update
 
-    eps_clip = 0.2          # clip parameter for PPO
+    eps_clip = 0.3          # clip parameter for PPO
     gamma = 0.99            # discount factor
 
-    lr_actor = 0.0003       # learning rate for actor network
+    lr_actor = 0.0001       # learning rate for actor network
     lr_critic = 0.001       # learning rate for critic network
 
     random_seed = 0         # set random seed if required (0 = no random seed)
@@ -197,9 +197,17 @@ def train():
 
             # update PPO agent
             if time_step % update_timestep == 0:
-                avg_rewards = np.mean(ppo_agent.buffer.rewards)
-                print(f"update Episode {i_episode} \t time step {t}, {time_step} \t avg reward: {avg_rewards}")
-                ppo_agent.update()
+                sum_rewards = np.sum(ppo_agent.buffer.rewards)
+                update_msg = f"\nupdate Episode {i_episode} \t time step {t}, {time_step} \t sum reward: {sum_rewards}"
+
+                log_file = open("log.txt", "a")
+                log_file.write(update_msg)
+
+                loss = ppo_agent.update()
+
+                loss_msg = f"\tloss: {loss}"
+                log_file.write(loss_msg)
+                print(update_msg, loss_msg)
 
             # if continuous action space; then decay action std of ouput action distribution
             if has_continuous_action_space and time_step % action_std_decay_freq == 0:
@@ -233,7 +241,7 @@ def train():
             # save model weights
             if time_step % save_model_freq == 0:
                 print("--------------------------------------------------------------------------------------------")
-                save_path = f"models/ppo_agent_ver3_episode{i_episode}_{time_step}"
+                save_path = f"models/ppo_agent_ver4_episode{i_episode}_{time_step}.pth"
                 print("saving model at : " + save_path)
                 ppo_agent.save(save_path)
                 print("model saved")

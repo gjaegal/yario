@@ -249,6 +249,8 @@ class PPO:
 
         # clear buffer
         self.buffer.clear()
+        
+        return loss.mean()
     
     def save(self, checkpoint_path):
         torch.save(self.policy_old.state_dict(), checkpoint_path)

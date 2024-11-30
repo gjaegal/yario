@@ -106,7 +106,7 @@ class Game():
         # 게임 환경 업데이트
         obs, rew, done, info = self.env.step(action)
         # print(f"obs: {obs}")
-        print(f"rew: {rew}")
+        # print(f"rew: {rew}")
         # print(f"done: {done}")
         reward = self.custom_reward()
 
@@ -182,8 +182,8 @@ class Game():
         position_diff = mario_position.x - self.prev_mario_x
         if position_diff >0:
             reward += position_diff /10.0
-        if position_diff <= 0:
-            reward -= 1
+        # if position_diff <= 0:
+        #     reward -= 1
         
         if mario_position.x > self.farthest_x:
             reward += 1
@@ -195,7 +195,7 @@ class Game():
         
         
         if self.is_dead():
-            reward -= 500
+            reward -= 100
             
         if self.is_world_cleared():
             reward += 100
